@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - FLASK_ENV=production
+      - MONGO_URI=mongodb+srv://heet:heet@cluster0.txa2kuw.mongodb.net
+      - ./backend/.env
+    
+    depends_on:
+      - mongo
+    networks:
+      - zkp_net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - zkp_net
+
+  mongo:
+    image: mongo:6.0
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - zkp_net
+
+volumes:
+  mongo_data:
+
+networks:
+  zkp_net:
+    driver: bridge
