@@ -10,10 +10,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies explicitly (do not rely on malformed requirements.txt)
-RUN pip install --no-cache-dir python-dotenv flask pymongo dnspython flask-cors pycryptodome psutil "ecdsa>=0.18.0" gunicorn
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend sources
-COPY backend/ ./
+COPY . ./
 
 # Expose default port for documentation only; Railway provides $PORT at runtime.
 EXPOSE 5000
