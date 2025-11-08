@@ -21,5 +21,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 5000
 # Use an entrypoint that binds to the platform-provided $PORT (Railway compatibility).
 # If PORT is not set, fall back to 5000.
-ENV PORT=${PORT:-5000}
+ENV PORT=5000
+
 CMD ["sh", "-lc", "gunicorn --bind 0.0.0.0:${PORT} app:app --workers 3 --timeout 60"]
