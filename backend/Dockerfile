@@ -9,11 +9,13 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends build-essential libssl-dev libffi-dev \
   && rm -rf /var/lib/apt/lists/*
 
+ # Copy backend sources
+COPY . ./
+COPY requirements.txt .
 # Install Python dependencies explicitly (do not rely on malformed requirements.txt)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend sources
-COPY . ./
+
 
 # Expose default port for documentation only; Railway provides $PORT at runtime.
 EXPOSE 5000
