@@ -1,4 +1,4 @@
-import { getVault, logout, updateVault } from '@/utils/api';
+import { getVault, logout, updateVault, saveVault } from '@/utils/api';
 import { deriveRootKey } from '@/utils/kdf';
 import { decryptVault, deriveVaultKey, encryptVault } from '@/utils/vault';
 import {
@@ -447,6 +447,50 @@ export default function Dashboard() {
                   }`}
               >
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+
+              {/* Upload local wallet to server (small button on profile/header) */}
+              <button
+                onClick={async () => {
+                  try {
+                    const username = (localStorage.getItem('current_user') || '').trim().toLowerCase();
+                    if (!username) {
+                      alert('No current user found in localStorage');
+                      return;
+                    }
+                    const encRaw = localStorage.getItem('wallet_priv_final_enc');
+                    if (!encRaw) {
+                      alert('No local wallet found to upload');
+                      return;
+                    }
+                    let vault_blob;
+                    try {
+                      vault_blob = JSON.parse(encRaw);
+                    } catch (e) {
+                      alert('Failed to parse local wallet blob');
+                      return;
+                    }
+                    const resp = await saveVault(username, vault_blob);
+                    if (resp && resp.status === 'success') {
+                      alert('Local wallet uploaded to server successfully');
+                      setSaveError(null);
+                    } else {
+                      alert('Upload failed: ' + (resp && resp.message ? resp.message : 'unknown'));
+                    }
+                  } catch (err) {
+                    console.error('Upload vault error', err);
+                    alert('Upload failed: ' + (err.message || err));
+                  }
+                }}
+                className={`px-3 py-2 rounded-lg transition flex items-center gap-2 ${darkMode
+                    ? 'bg-blue-600 bg-opacity-10 hover:bg-opacity-20 text-blue-400'
+                    : 'bg-blue-50 hover:bg-blue-100 text-blue-600'
+                  }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12v8m0-8l3 3m-3-3-3 3M12 3v9" />
+                </svg>
+                <span className="text-sm font-semibold hidden sm:block">Upload</span>
               </button>
 
               <button

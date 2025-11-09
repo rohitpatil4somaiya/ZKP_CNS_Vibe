@@ -172,6 +172,37 @@ def get_encrypted_backup():
 
 
 
+@auth_bp.route("/auth/save-vault", methods=["POST"])
+def save_vault_unauthed():
+    """Save an encrypted vault_blob for a username.
+
+    This endpoint allows the frontend (immediately after wallet setup) to persist
+    the client-side encrypted vault to MongoDB so the user can recover on other devices.
+    The server does not attempt to decrypt the blob (it's encrypted client-side).
+    """
+    data = request.get_json() or {}
+    username = data.get("username")
+    vault_blob = data.get("vault_blob")
+
+    if not username or not vault_blob:
+        return jsonify({"status": "error", "message": "username and vault_blob required"}), 400
+
+    user, username_norm = find_user_by_username(username)
+    if not user:
+        return jsonify({"status": "error", "message": "User not found"}), 404
+
+    try:
+        users.update_one({"username_norm": username_norm}, {"$set": {"vault_blob": vault_blob, "updated_at": datetime.utcnow()}}, upsert=False)
+        try:
+            log_event("VAULT_SAVE", username=username, details="Vault saved via setup API")
+        except Exception:
+            pass
+        return jsonify({"status": "success", "message": "Vault saved"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+
 
 
 @auth_bp.route("/auth/challenge", methods=["POST"])

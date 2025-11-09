@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
 //import { createSocialWallet } from '../lib/wallet_recovery'
-import { sendSharesEmail } from '../utils/api'
+import { sendSharesEmail, saveVault } from '../utils/api'
 import { deriveRootKey } from '../utils/kdf'
 import { splitMasterKey } from '../lib/sss'
 
@@ -88,10 +88,8 @@ export default function WalletSetupPage() {
     
       
       // Store encrypted wallet and public key
-      localStorage.setItem('wallet_priv_final_enc', JSON.stringify({
-        data: Array.from(new Uint8Array(encrypted)),
-        iv: Array.from(ivBytes)
-      }))
+      const vault_blob = { data: Array.from(new Uint8Array(encrypted)), iv: Array.from(ivBytes) }
+      localStorage.setItem('wallet_priv_final_enc', JSON.stringify(vault_blob))
       localStorage.setItem('wallet_pub_jwk', JSON.stringify(pubJwk))
    
       
@@ -121,7 +119,18 @@ export default function WalletSetupPage() {
 
       const resp = await sendSharesEmail({ recipients, fromEmail: senderEmail, username })
       if (resp.status === 'success') {
-        setStatus(`Emails sent to ${resp.sent} friend(s). Setup complete!`)
+        // Persist vault to server so user can recover from other devices
+        try {
+          const saveResp = await saveVault(username, vault_blob)
+          if (saveResp && saveResp.status === 'success') {
+            setStatus(`Emails sent to ${resp.sent} friend(s). Vault saved to server. Setup complete!`)
+          } else {
+            setStatus(`Emails sent but vault save failed: ${saveResp && saveResp.message ? saveResp.message : 'unknown'}`)
+          }
+        } catch (err) {
+          console.error('Save vault error', err)
+          setStatus(`Emails sent but vault save failed: ${err.message}`)
+        }
         // Redirect to login after 2 seconds
         setTimeout(() => navigate('/login'), 2000)
       } else {

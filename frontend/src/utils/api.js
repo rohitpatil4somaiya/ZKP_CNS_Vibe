@@ -88,3 +88,16 @@ export async function sendSharesEmail({ recipients, fromEmail, username }) {
   }
   return res.json();
 }
+
+// Save vault for a username without a session token (used after wallet setup)
+export async function saveVault(username, vault_blob) {
+  const res = await fetch(`${BASE_URL}/auth/save-vault`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, vault_blob })
+  })
+  if (!res.ok) {
+    return { status: 'error', message: `Save vault error: ${res.status} ${res.statusText}` }
+  }
+  return res.json()
+}

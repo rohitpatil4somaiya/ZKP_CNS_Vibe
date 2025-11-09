@@ -110,16 +110,30 @@ export function verifySchnorrProof(proof, friendPublicKeyY) {
 /**
  * Final User Step: Decrypts and imports the ECC key.
  */
-export async function finalRecoveryStep(recoveredMasterKey) {
+export async function finalRecoveryStep(recoveredMasterKey, vault_blob = null) {
   console.log('🔍 Final Recovery: Looking for encrypted wallet...')
-  const encFinalRaw = localStorage.getItem('wallet_priv_final_enc')
-  if (!encFinalRaw) {
-    console.error('❌ Final Recovery: Encrypted wallet not found in localStorage')
+  let encFinal = null
+
+  if (vault_blob) {
+    console.log('🔍 Final Recovery: Using vault_blob provided by server')
+    encFinal = vault_blob
+  } else {
+    const encFinalRaw = localStorage.getItem('wallet_priv_final_enc')
+    if (encFinalRaw) {
+      console.log('✅ Final Recovery: Found encrypted wallet in localStorage')
+      try {
+        encFinal = JSON.parse(encFinalRaw)
+      } catch (err) {
+        console.error('❌ Final Recovery: Failed to parse local storage vault:', err)
+        encFinal = null
+      }
+    }
+  }
+
+  if (!encFinal) {
+    console.error('❌ Final Recovery: Encrypted wallet not found (local or server)')
     throw new Error('Encrypted wallet not found.')
   }
-  
-  console.log('✅ Final Recovery: Found encrypted wallet')
-  const encFinal = JSON.parse(encFinalRaw)
   console.log('🔍 Final Recovery: Encrypted data length:', encFinal.data.length, 'IV length:', encFinal.iv.length)
 
   try {
@@ -127,8 +141,8 @@ export async function finalRecoveryStep(recoveredMasterKey) {
     console.log('🔍 Final Recovery: Attempting decryption...')
     
     // Convert arrays to base64 strings
-    const dataArray = new Uint8Array(encFinal.data)
-    const ivArray = new Uint8Array(encFinal.iv)
+  const dataArray = new Uint8Array(encFinal.data)
+  const ivArray = new Uint8Array(encFinal.iv)
     
     const dataBase64 = btoa(String.fromCharCode(...dataArray))
     const ivBase64 = btoa(String.fromCharCode(...ivArray))

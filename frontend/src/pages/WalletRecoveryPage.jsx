@@ -82,16 +82,29 @@ export default function WalletRecoveryPage() {
       const recoveredMasterKey = await reconstructMasterKey(sharesToCombine)
       console.log('Master key reconstructed successfully')
 
+      // First authenticate using the reconstructed key to fetch the server-stored vault
+      setStatus('Logging in with reconstructed key to fetch server-stored vault...')
+      const loginResult = await autoLogin(username, recoveredMasterKey)
+      if (!loginResult || loginResult.status !== 'success') {
+        throw new Error(loginResult && loginResult.message ? loginResult.message : 'Login failed')
+      }
+
+      // Attempt to decrypt the vault returned by server. finalRecoveryStep will fall back to localStorage
       setStatus('Decrypting wallet with recovered key...')
-      await finalRecoveryStep(recoveredMasterKey)
+      await finalRecoveryStep(recoveredMasterKey, loginResult.vault_blob)
       console.log('Wallet decrypted successfully')
 
       setRecoveredKey(recoveredMasterKey)
       setIsRecovered(true)
-      setStatus('Key Recovered! Now logging you in...')
-
-      await autoLogin(username, recoveredMasterKey)
-
+      setStatus('Key Recovered! Redirecting to dashboard...')
+      // ensure we navigate to dashboard after successful recovery/login
+      setTimeout(() => {
+        try {
+          navigate('/dashboard')
+        } catch (e) {
+          console.warn('Navigation to dashboard failed', e)
+        }
+      }, 700)
     } catch (error) {
       console.error('Recovery Error:', error)
       setStatus(`Recovery Failed: ${error.message || 'The shares may be incorrect or corrupted.'}`)
@@ -103,7 +116,7 @@ export default function WalletRecoveryPage() {
       setStatus('Requesting challenge from server...')
       const challenge = await requestChallenge(username)
       if (challenge.status !== 'success') {
-        return setStatus(challenge.message || 'Challenge request failed')
+        return { status: 'error', message: challenge.message || 'Challenge request failed' }
       }
 
       const keyBuffer = await crypto.subtle.exportKey('raw', recoveredMasterKey)
@@ -120,18 +133,19 @@ export default function WalletRecoveryPage() {
       })
 
       if (result.status === 'success') {
-        setStatus('Login successful! Redirecting to dashboard...')
+        // persist session token and signal login; navigation handled by caller
         localStorage.setItem('session_token', result.session_token)
         localStorage.setItem('current_user', username)
         localStorage.setItem('isLoggedIn', 'true')
         window.dispatchEvent(new Event('login-success'))
-        setTimeout(() => navigate('/dashboard'), 1500)
-      } else {
-        setStatus('Login failed: ' + (result.message || 'Unknown error'))
+        return result
       }
+
+      return result
     } catch (error) {
       console.error('❌ Auto-login: Error occurred:', error)
       setStatus('Auto-login failed: ' + error.message)
+      return { status: 'error', message: error.message }
     }
   }
 
