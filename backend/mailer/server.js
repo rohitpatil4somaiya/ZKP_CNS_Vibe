@@ -53,11 +53,45 @@ const express = require('express')
 const cors = require('cors')
 const nodemailer = require('nodemailer')
 
+// optional serverless adapter for Vercel
+let serverless = null
+try {
+  serverless = require('serverless-http')
+} catch (e) {
+  // not installed in some environments; fine
+}
+
 const app = express()
 const PORT = process.env.MAILER_PORT || 5050
 
-app.use(cors())
+// Use a conservative CORS middleware but also set explicit headers to satisfy preflight
+const allowedOriginsRaw = process.env.ALLOWED_ORIGIN || process.env.FRONTEND_ORIGINS || '*'
+const allowedOrigins = allowedOriginsRaw.split ? allowedOriginsRaw.split(',').map(s => s.trim()).filter(Boolean) : ['*']
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin
+  if (allowedOrigins.includes('*')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*')
+  } else if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+  } else if (allowedOrigins.length > 0) {
+    // default to first allowed origin
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0])
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+  // If you need credentials (cookies) enable the next header and set fetch to include credentials
+  // res.setHeader('Access-Control-Allow-Credentials', 'true')
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
+  }
+  next()
+})
+
 app.use(express.json({ limit: '1mb' }))
+
+// Also keep express cors middleware for general requests
+app.use(cors({ origin: allowedOriginsRaw === '*' ? true : allowedOrigins }))
 
 
 function createTransporter() {
@@ -150,6 +184,13 @@ If you were not expecting this, you can ignore and delete this email.
     res.json({ status: 'success', sent: results.length, results })
   } catch (err) {
     console.error('Mailer error:', err)
+    // Ensure CORS headers even on error
+    const origin = req.headers.origin
+    if (allowedOrigins.includes('*')) {
+      res.setHeader('Access-Control-Allow-Origin', origin || '*')
+    } else if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+    }
     res.status(500).json({ status: 'error', message: err.message || 'Send failed' })
   }
 })
@@ -158,6 +199,17 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.listen(PORT, () => {
-  console.log(`Mailer server listening on http://localhost:${PORT}`)
-})
+// If running as a serverless function (e.g., Vercel), export handler
+if (process.env.VERCEL && serverless) {
+  console.log('Running in Vercel serverless mode: exporting handler')
+  module.exports = serverless(app)
+} else if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Mailer server listening on http://localhost:${PORT}`)
+  })
+} else {
+  // Vercel but serverless-http not available: still listen (may fail on Vercel)
+  app.listen(PORT, () => {
+    console.log(`Mailer server listening on http://localhost:${PORT}`)
+  })
+}
